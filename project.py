@@ -18,7 +18,7 @@ from sem_mem import Ui_SemMemWindow
 from short_term_mem import Ui_ShortTermMemWindow
 from environment import Ui_EnvironmentWindow
 from experiment import Ui_ExperimentWindow
-from results import Ui_ResultsWindow
+from question_answer import Ui_QAResWindow
 
 import MySQLdb as mdb
 from contextlib import closing
@@ -161,6 +161,15 @@ class Ui_ProjectWindow(QWidget):
         self.runBtn.clicked.connect(self.run)
         self.ExpBtn.clicked.connect(self.exp)
 
+    def get_questions(self):
+        version_id = int(self.version_id.text())
+        db = mdb.connect('127.0.0.1', 'root', '', 'interSys')
+        with closing(db.cursor()) as cur:
+            cur.execute("""SELECT version_id, domain, item, value, categories, types, attributes FROM experiment WHERE version_id = '%i' AND item = 'question' 
+                UNION SELECT version_id, domain, item, value, categories, types, attributes FROM environment WHERE version_id = '%i' AND item = 'question' """ % (version_id, version_id))
+            questions = cur.fetchall()
+        return questions
+
     def run(self):
         version_id = int(self.version_id.text())
         db = mdb.connect('127.0.0.1', 'root', '', 'interSys')
@@ -284,12 +293,13 @@ class Ui_ProjectWindow(QWidget):
         
 
         self.ResultsWindow = QtWidgets.QMainWindow()
-        self.ui = Ui_ResultsWindow()
+        self.ui = Ui_QAResWindow()
         self.ui.setupUi(self.ResultsWindow)
         self.ui.label_2.setText(self.label.text())
         self.ui.label_3.setText(self.label_2.text())
         self.ui.version_id.setText(self.version_id.text())
 
+        answers = []
         env_str = "perc"
         f = open("Maude-2/results.txt", "r")
         i = 0
@@ -308,12 +318,17 @@ class Ui_ProjectWindow(QWidget):
                     start_t = new_line[x].find("for ")+len("for ")
                     end_t = new_line[x].find(")")
                     time = new_line[x][start_t:end_t]
-                    self.ui.envTableWidget.setRowCount(j+1)
-                    self.ui.envTableWidget.setItem(j, 0, QtWidgets.QTableWidgetItem(mid))
-                    self.ui.envTableWidget.setItem(j, 1, QtWidgets.QTableWidgetItem(time))
+                    if time == "INF":
+                        answers.append(mid)
+                    # self.ui.envTableWidget.setRowCount(j+1)
+                    # self.ui.envTableWidget.setItem(j, 0, QtWidgets.QTableWidgetItem(mid))
+                    # self.ui.envTableWidget.setItem(j, 1, QtWidgets.QTableWidgetItem(time))
                     j+=1
+                # print(answers)
+
         f.close()
 
+        res_stm = {}
         stm_str = "decay"
         f = open("Maude-2/results.txt", "r")
         i = 0
@@ -328,9 +343,10 @@ class Ui_ProjectWindow(QWidget):
                 start_t = new_line.find("decay ")+len("decay ")
                 end_t = new_line.find(" >")
                 time = new_line[start_t:end_t]
-                self.ui.stmTableWidget.setRowCount(j+1)
-                self.ui.stmTableWidget.setItem(j, 0, QtWidgets.QTableWidgetItem(mid))
-                self.ui.stmTableWidget.setItem(j, 1, QtWidgets.QTableWidgetItem(time))
+                res_stm[mid] = time
+                # self.ui.stmTableWidget.setRowCount(j+1)
+                # self.ui.stmTableWidget.setItem(j, 0, QtWidgets.QTableWidgetItem(mid))
+                # self.ui.stmTableWidget.setItem(j, 1, QtWidgets.QTableWidgetItem(time))
                 j+=1
         f.close()
 
@@ -399,8 +415,18 @@ class Ui_ProjectWindow(QWidget):
         #     f2.write(line)
         # f.close()
         # f2.close()
-
-
+        j = 0
+        questions = self.get_questions()
+        for question in questions:
+            self.ui.tableWidget.setRowCount(j+1)
+            for item, time in res_stm.items():
+                if "?" in item and question[4] in item and question[5] in item and question[6] in item:
+                    self.ui.tableWidget.setItem(j, 0, QtWidgets.QTableWidgetItem(item))
+                    self.ui.tableWidget.setItem(j, 2, QtWidgets.QTableWidgetItem(time))
+            for answer in answers:
+                if question[4] in answer and question[5] in answer and question[6] in answer:
+                    self.ui.tableWidget.setItem(j, 1, QtWidgets.QTableWidgetItem(answer))
+            j += 1
         self.ResultsWindow.show()
 
 
